@@ -264,7 +264,7 @@ class Runs:
 
 
 if __name__ == "__main__":
-    rr, annotations = RRLoader().load("F:\phd\monotonic_runs\src\\research\data\\rr\BUCK_KRYSTYNA_51072403305_K_RR.txt",0,1)
+    rr, annotations = RRLoader().load("F:\phd\monotonic_runs\src\core\\tests\\resources\\rr\\1.txt",0,1)
     #noised_rr, noised_annotations = NoisedRRLoader().load("0001.rea")
 
     #annotations =  np.zeros(len(rr))
