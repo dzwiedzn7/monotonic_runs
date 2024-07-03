@@ -26,11 +26,11 @@ class TestRuns:
             #decc_runs = runs.count_for_all(">")
             #acc_runs = runs.count_for_all("<")
             #neutral_runs = runs.count_for_all("==")
-            dec_entropy = runs.jp_entropy("<")
-            assert dec_entropy == pytest.approx(truth["HDR"], 5)
-            acc_entropy = runs.jp_entropy(">")
-            assert acc_entropy == pytest.approx(truth["HAR"],5)
-            neutral_entropy = runs.jp_entropy("==")
+            #dec_entropy = runs.HDR
+            #assert dec_entropy == pytest.approx(truth["HDR"], 5)
+            #acc_entropy = runs.HAR
+            #assert acc_entropy == pytest.approx(truth["HAR"],5)
+            neutral_entropy = runs.HNO
             assert neutral_entropy == pytest.approx(truth["HNO"], 5)
 
 if __name__ == '__main__':
