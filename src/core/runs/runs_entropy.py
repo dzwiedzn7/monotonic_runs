@@ -128,10 +128,9 @@ class Runs:
         return signal_segments
 
     def split_runs(self):
-        signal_segments = self.segments
         for operator in self.operators:
             splited_runs = []
-            for segment in signal_segments:
+            for segment in self.segments:
                 if len(segment) < 2:
                     continue
                 mask = np.full((len(segment)), False)
@@ -143,14 +142,14 @@ class Runs:
         return self.runs_cache
 
     def create_runs_counter(self):
-        collect_list = []
-        runs = self.split_runs()
-        for run_type,operator in zip(runs.values(), self.operators):
+        self.split_runs()  # Ensure runs_cache is populated
+        for operator, run_type in self.runs_cache.items():
+            collect_list = []
             for segment in run_type:
                 if len(segment) > 0:
                     run_count = [len(run) for run in segment]
                     collect_list += run_count
-            counter = OrderedCounter(collect_list)
+            counter = Counter(collect_list)
             self.counters_cache[operator] = counter
         return self.counters_cache
 

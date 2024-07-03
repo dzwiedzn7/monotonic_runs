@@ -3,6 +3,7 @@ import os
 import pytest
 import pandas as pd
 from src.core.runs.runs_entropy import RRLoader, Signal, Runs
+import time
 
 
 class TestResources:
@@ -17,6 +18,7 @@ class TestRuns:
     @pytest.mark.usefixtures("ground_truth_df")
     @pytest.mark.usefixtures("resource_files")
     def test_entropy(self, resource_files, ground_truth_df):
+        start = time.perf_counter()
         for idx, file_path in enumerate(resource_files):
             print(idx,file_path)
             truth = ground_truth_df.iloc[idx]
@@ -26,12 +28,14 @@ class TestRuns:
             #decc_runs = runs.count_for_all(">")
             #acc_runs = runs.count_for_all("<")
             #neutral_runs = runs.count_for_all("==")
-            #dec_entropy = runs.HDR
-            #assert dec_entropy == pytest.approx(truth["HDR"], 5)
-            #acc_entropy = runs.HAR
-            #assert acc_entropy == pytest.approx(truth["HAR"],5)
+            dec_entropy = runs.HDR
+            assert dec_entropy == pytest.approx(truth["HDR"], 5)
+            acc_entropy = runs.HAR
+            assert acc_entropy == pytest.approx(truth["HAR"],5)
             neutral_entropy = runs.HNO
             assert neutral_entropy == pytest.approx(truth["HNO"], 5)
+        end = time.perf_counter()
+        print("Time elapsed: ", end - start)
 
 if __name__ == '__main__':
     unittest.main()
