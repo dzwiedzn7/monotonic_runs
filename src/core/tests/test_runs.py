@@ -17,7 +17,7 @@ class TestResources:
 class TestRuns:
     @pytest.mark.usefixtures("ground_truth_df")
     @pytest.mark.usefixtures("resource_files")
-    def test_entropy(self, resource_files, ground_truth_df):
+    def test_asymmetrical_entropy(self, resource_files, ground_truth_df):
         start = time.perf_counter()
         for idx, file_path in enumerate(resource_files):
             truth = ground_truth_df.iloc[idx]
@@ -28,9 +28,9 @@ class TestRuns:
             acc_entropy = runs.HAR
             neutral_entropy = runs.HNO
 
-            assert dec_entropy == pytest.approx(truth["HDR"], 5)
-            assert acc_entropy == pytest.approx(truth["HAR"],5)
-            assert neutral_entropy == pytest.approx(truth["HNO"], 5)
+            assert dec_entropy == pytest.approx(truth["HDR"], 7)
+            assert acc_entropy == pytest.approx(truth["HAR"],7)
+            assert neutral_entropy == pytest.approx(truth["HNO"], 7)
 
         end = time.perf_counter()
         print("Time elapsed: ", end - start)

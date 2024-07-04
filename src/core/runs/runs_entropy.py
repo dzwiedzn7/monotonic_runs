@@ -27,23 +27,6 @@ class OrderedCounter(Counter, OrderedDict):
             if elem not in self and count > 0:
                 result[elem] = count
         return result
-    """
-    def __add__(self, other):
-            if not isinstance(other, Counter):
-                return NotImplemented
-            result = Counter()
-            for elem, count in sorted(self.items()):
-                newcount = count + other[elem]
-                result[elem] = newcount
-            for elem, count in sorted(other.items()):
-                if elem not in self:
-                    result[elem] = count
-            return result
-    """
-
-    #def keys() -> return sorted keys
-
-    #def counts() -> return counts
 
 
 @dataclass
@@ -97,21 +80,23 @@ class NoisedRRLoader(AbstractDataLoader):
         return noised_rr, annotations
 
 
+class RRLoaderNoAnnotations(AbstractDataLoader):
+    def load(self, filename, rr_col, an_col):
+        rr = np.loadtxt(filename, skiprows=1, delimiter="\t")
+        return rr
+
+
 class Runs:
     def __init__(self, signal: Signal):
         self.signal = signal
         self.segments = self.split_signal_into_segments()
         self.operators = ["<", ">", "=="]
         self.runs_cache = {}
-        self.counters_cache = {} # remeber to call create_runs_counter method after init object
+        self.counters_cache = {}
         self.create_runs_counter()
-        #self.n_rr = self.total_number_of_rr()
-        #self.runs_bidirectional = self.runs_dec + self.runs_acc + self.runs_neutral
-        self.HDR = self.jp_entropy(self.counters_cache["<"])
-        self.HAR = self.jp_entropy(self.counters_cache[">"])
-        self.HNO = self.jp_entropy(self.counters_cache["=="])
-
-
+        self.HDR = self.asymmetrical_entropy(self.counters_cache["<"])
+        self.HAR = self.asymmetrical_entropy(self.counters_cache[">"])
+        self.HNO = self.asymmetrical_entropy(self.counters_cache["=="])
 
     def split_signal_into_segments(self):
         bad_indices = np.where(self.signal.annotations != 0.0)[0]
@@ -168,6 +153,7 @@ class Runs:
         neutral = self.counters_cache["=="].values()
         return sum(neutral) + sum(acc) + sum(dec)
 
+    @property
     def total_number_of_rr(self):
         return sum([len(segment) for segment in self.segments])
 
@@ -177,10 +163,11 @@ class Runs:
         probability = [run_count/total for run_count in run_counts]
         return probability, sum(probability)
 
+    #depricated
     def rr_probability(self, runs_counter):
         run_counts = list(dict(sorted(runs_counter.items())).values())
         run_lenght = sorted(runs_counter.keys())
-        total = self.total_number_of_rr()
+        total = self.total_number_of_rr
         entropy = [len*run_count/total for run_count, len in zip(run_counts, run_lenght)]
         return entropy, sum(entropy)
 
@@ -192,61 +179,25 @@ class Runs:
         shannon = -sum([ent*np.log(ent) for ent in entropy[0]])
         return shannon
 
-    def jp_entropy(self, runs_counter, bidirection=False):
-        # - i * counts[i]/n * log(i * counts[i]/n)
+    def asymmetrical_entropy(self, runs_counter):
+        # Compute n based on the total_run_counter
+        n_keys = sorted(self.total_run_counter.keys())
+        n_range = list(range(n_keys[0], n_keys[-1] + 1))
+        n_vals = [self.total_run_counter.get(key, 0) for key in n_range]
+        n = sum(key * val for key, val in zip(n_range, n_vals))
+
+        sorted_keys = sorted(runs_counter.keys())
+        if not sorted_keys:
+            return 0
 
         entropy = 0
+        for i in range(sorted_keys[0], sorted_keys[-1] + 1):
+            if i in runs_counter:
+                count = runs_counter[i]
+                partial_entropy = -count * i / n * np.log(count * i / n)
+                entropy += partial_entropy
 
-        #print(counter)
-        run_counts = list(dict(sorted(runs_counter.items())).values())
-        run_lenght = sorted(runs_counter.keys())
-        total = self.total_number_of_rr()
-        n_keys = sorted(self.total_run_counter.keys())
-        n_keys = list(range(n_keys[0],n_keys[-1]+1))
-        #n_vals = sorted(self.bidirectional_count().values())[::-1]
-        n_vals = [self.total_run_counter[key] for key in n_keys]
-        #print(n_vals)
-        #print(n_keys)
-        #print(n_vals[::-1])
-        #print(n_keys)
-        n = sum([x * (i + 1) for i, x in enumerate(list(dict(sorted(self.counters_cache[">"].items())).values()))] +
-                [x * (i + 1) for i, x in enumerate(list(dict(sorted(self.counters_cache["<"].items())).values()))] +
-                [x * (i + 1) for i, x in enumerate(list(dict(sorted(self.counters_cache["=="].items())).values()))])
-        #print(n)
-        n =sum([key*val for key,val in zip(n_keys,n_vals)])
-        #print(n)
-        for run_count,len in zip(run_counts,run_lenght):
-            #print(run_count,len)
-            entropy += -len*run_count/total * np.log(len*run_count/total)
-
-        if bidirection:
-            jp_entropy = self.individual_entropy(self.total_run_counter, n)
-        else:
-            jp_entropy = self.individual_entropy(runs_counter, n)
-        return jp_entropy
-
-
-    def individual_entropy(self, counter, n):
-        #print(counter)
-        help = list(sorted(counter.keys()))
-        #print(help)
-        if len(help) == 0:
-            return 0
-        help_range = list(range(help[0],help[-1]+1))
-        #print(help_range)
-        #print(list(range(help[0],help[-1]+1)))
-        import math
-        full = 0
-        partial = 0
-        for i in help_range:
-            if i in counter.keys():
-                #print(counter[i],i,n)
-                partial = - counter[i] * i / n * math.log(counter[i] * i / n)
-            full += partial
-        return full
-
-
-
+        return entropy
 
     @staticmethod
     def diff_conditions(array, operator):
@@ -279,9 +230,9 @@ if __name__ == "__main__":
     #decc_runs = runs.count_for_all(">")
     #acc_runs = runs.count_for_all("<")
     #neutral_runs = runs.count_for_all("==")
-    #dec_entropy = runs.jp_entropy("<")
-    #acc_entropy = runs.jp_entropy(">")
-    #neutral_entropy = runs.jp_entropy("==")
+    #dec_entropy = runs.asymmetrical_entropy("<")
+    #acc_entropy = runs.asymmetrical_entropy(">")
+    #neutral_entropy = runs.asymmetrical_entropy("==")
     #neutral_runs = noised_runs.count_for_all("==")
     print(runs.counters_cache["<"])
     print(runs.counters_cache[">"])
