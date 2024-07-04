@@ -107,8 +107,8 @@ class Runs:
         self.create_runs_counter()
         #self.n_rr = self.total_number_of_rr()
         #self.runs_bidirectional = self.runs_dec + self.runs_acc + self.runs_neutral
-        self.HDR = self.jp_entropy(self.counters_cache[">"])
-        self.HAR = self.jp_entropy(self.counters_cache["<"])
+        self.HDR = self.jp_entropy(self.counters_cache["<"])
+        self.HAR = self.jp_entropy(self.counters_cache[">"])
         self.HNO = self.jp_entropy(self.counters_cache["=="])
 
 
