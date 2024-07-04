@@ -97,20 +97,21 @@ class NoisedRRLoader(AbstractDataLoader):
         return noised_rr, annotations
 
 
-class RRLoaderNoAnnotations(AbstractDataLoader):
-    def load(self, filename):
-        rr = np.loadtxt(filename, skiprows=1, delimiter="\t")
-        return rr
-
-
 class Runs:
     def __init__(self, signal: Signal):
         self.signal = signal
+        self.segments = self.split_signal_into_segments()
+        self.operators = ["<", ">", "=="]
+        self.runs_cache = {}
+        self.counters_cache = {} # remeber to call create_runs_counter method after init object
+        self.create_runs_counter()
         #self.n_rr = self.total_number_of_rr()
-        #self.runs_acc = self.count_for_all("<")
-        #self.runs_dec = self.count_for_all(">")
-        #self.runs_neutral = self.count_for_all("==")
         #self.runs_bidirectional = self.runs_dec + self.runs_acc + self.runs_neutral
+        self.HDR = self.jp_entropy(self.counters_cache["<"])
+        self.HAR = self.jp_entropy(self.counters_cache[">"])
+        self.HNO = self.jp_entropy(self.counters_cache["=="])
+
+
 
     def split_signal_into_segments(self):
         bad_indices = np.where(self.signal.annotations != 0.0)[0]
@@ -126,89 +127,91 @@ class Runs:
             signal_segments.append(self.signal.rr[start:len(self.signal.rr)])
         return signal_segments
 
-    def split_runs(self, operator):
-        splited_runs = []
-        signal_segments = self.split_signal_into_segments()
-        for segment in signal_segments:
-            if len(segment) < 2:
-                continue
-            mask = np.full((len(segment)), False)
-            split_points = np.where(self.diff_conditions(segment, operator))[0] + 1
-            mask[split_points] = True
-            run = self.splitByBool(segment, mask)
-            splited_runs.append(run)
-        return splited_runs
+    def split_runs(self):
+        for operator in self.operators:
+            splited_runs = []
+            for segment in self.segments:
+                if len(segment) < 2:
+                    continue
+                mask = np.full((len(segment)), False)
+                split_points = np.where(self.diff_conditions(segment, operator))[0] + 1
+                mask[split_points] = True
+                run = self.splitByBool(segment, mask)
+                splited_runs.append(run)
+            self.runs_cache[operator] = splited_runs
+        return self.runs_cache
 
-    def count_for_all(self, operator):
-        collect_list = []
-        runs = self.split_runs(operator)
-        for segment in runs:
-            if len(segment) > 0:
-                run_count = [len(run) for run in segment]
-                collect_list += run_count
-        counter = OrderedCounter(collect_list)
-        return counter
+    def create_runs_counter(self):
+        self.split_runs()  # Ensure runs_cache is populated
+        for operator, run_type in self.runs_cache.items():
+            collect_list = []
+            for segment in run_type:
+                if len(segment) > 0:
+                    run_count = [len(run) for run in segment]
+                    collect_list += run_count
+            counter = Counter(collect_list)
+            self.counters_cache[operator] = counter
+        return self.counters_cache
 
     # depricated
-    def bidirectional_count(self):
-        acc = self.count_for_all(">")
-        dec = self.count_for_all("<")
-        neutral = self.count_for_all("==")
+    @property
+    def total_run_counter(self):
+        acc = self.counters_cache[">"]
+        dec = self.counters_cache["<"]
+        neutral = self.counters_cache["=="]
         return acc + dec + neutral
 
+    @property
     def sum_of_all_runs(self):
-        neutral = self.count_for_all("==").values()
-        acc = self.count_for_all("<").values()
-        dec = self.count_for_all(">").values()
+        acc = self.counters_cache[">"].values()
+        dec = self.counters_cache["<"].values()
+        neutral = self.counters_cache["=="].values()
         return sum(neutral) + sum(acc) + sum(dec)
 
     def total_number_of_rr(self):
-        return sum([len(segment) for segment in self.split_signal_into_segments()])
+        return sum([len(segment) for segment in self.segments])
 
-    def probability(self, operator):
-        counter = self.count_for_all(operator)
-        run_counts = list(dict(sorted(counter.items())).values())
+    def probability(self, runs_counter):
+        run_counts = list(dict(sorted(runs_counter.items())).values())
         total = self.sum_of_all_runs()
         probability = [run_count/total for run_count in run_counts]
         return probability, sum(probability)
 
-    def rr_probability(self, operator):
-        counter = self.count_for_all(operator)
-        run_counts = list(dict(sorted(counter.items())).values())
-        run_lenght = sorted(counter.keys())
+    def rr_probability(self, runs_counter):
+        run_counts = list(dict(sorted(runs_counter.items())).values())
+        run_lenght = sorted(runs_counter.keys())
         total = self.total_number_of_rr()
         entropy = [len*run_count/total for run_count, len in zip(run_counts, run_lenght)]
         return entropy, sum(entropy)
 
-    def shannon_entropy(self, operator, entropy_type=None):
+    def shannon_entropy(self, runs_counter, entropy_type=None):
         if entropy_type == "rr":
-            entropy = self.rr_probability(operator)
+            entropy = self.rr_probability(runs_counter)
         else:
-            entropy = self.probability(operator)
+            entropy = self.probability(runs_counter)
         shannon = -sum([ent*np.log(ent) for ent in entropy[0]])
         return shannon
 
-    def jp_entropy(self, operator, bidirection=False):
+    def jp_entropy(self, runs_counter, bidirection=False):
         # - i * counts[i]/n * log(i * counts[i]/n)
 
         entropy = 0
 
-        counter = self.count_for_all(operator)
         #print(counter)
-        run_counts = list(dict(sorted(counter.items())).values())
-        run_lenght = sorted(counter.keys())
+        run_counts = list(dict(sorted(runs_counter.items())).values())
+        run_lenght = sorted(runs_counter.keys())
         total = self.total_number_of_rr()
-        n_keys = sorted(self.bidirectional_count().keys())
+        n_keys = sorted(self.total_run_counter.keys())
         n_keys = list(range(n_keys[0],n_keys[-1]+1))
         #n_vals = sorted(self.bidirectional_count().values())[::-1]
-        n_vals = [self.bidirectional_count()[key] for key in n_keys]
+        n_vals = [self.total_run_counter[key] for key in n_keys]
         #print(n_vals)
         #print(n_keys)
         #print(n_vals[::-1])
         #print(n_keys)
-        n = sum([x * (i + 1) for i, x in enumerate(list(dict(sorted(self.count_for_all(">").items())).values()))] +
-                [x * (i + 1) for i, x in enumerate(list(dict(sorted(self.count_for_all("<").items())).values()))] +
-                [x * (i + 1) for i, x in enumerate(list(dict(sorted(self.count_for_all("==").items())).values()))])
+        n = sum([x * (i + 1) for i, x in enumerate(list(dict(sorted(self.counters_cache[">"].items())).values()))] +
+                [x * (i + 1) for i, x in enumerate(list(dict(sorted(self.counters_cache["<"].items())).values()))] +
+                [x * (i + 1) for i, x in enumerate(list(dict(sorted(self.counters_cache["=="].items())).values()))])
         #print(n)
         n =sum([key*val for key,val in zip(n_keys,n_vals)])
         #print(n)
@@ -217,9 +220,9 @@ class Runs:
             entropy += -len*run_count/total * np.log(len*run_count/total)
 
         if bidirection:
-            jp_entropy = self.individual_entropy(self.bidirectional_count(), n)
+            jp_entropy = self.individual_entropy(self.total_run_counter, n)
         else:
-            jp_entropy = self.individual_entropy(counter, n)
+            jp_entropy = self.individual_entropy(runs_counter, n)
         return jp_entropy
 
 
@@ -273,19 +276,19 @@ if __name__ == "__main__":
     runs = Runs(signal)
 
     #noised_runs = Runs(noised_signal)
-    decc_runs = runs.count_for_all(">")
-    acc_runs = runs.count_for_all("<")
-    neutral_runs = runs.count_for_all("==")
-    dec_entropy = runs.jp_entropy("<")
-    acc_entropy = runs.jp_entropy(">")
-    neutral_entropy = runs.jp_entropy("==")
+    #decc_runs = runs.count_for_all(">")
+    #acc_runs = runs.count_for_all("<")
+    #neutral_runs = runs.count_for_all("==")
+    #dec_entropy = runs.jp_entropy("<")
+    #acc_entropy = runs.jp_entropy(">")
+    #neutral_entropy = runs.jp_entropy("==")
     #neutral_runs = noised_runs.count_for_all("==")
-    print(decc_runs)
-    print(acc_runs)
-    print(neutral_runs)
-    print("HDR: ",dec_entropy)
-    print("HAR: :",acc_entropy)
-    print("HNR: ",neutral_entropy)
+    print(runs.counters_cache["<"])
+    print(runs.counters_cache[">"])
+    print(runs.counters_cache["=="])
+    print("HDR: ",runs.HDR)
+    print("HAR: :",runs.HAR)
+    print("HNR: ",runs.HNO)
     #print(runs.bidirectional_count())
     #plt.plot(rr)
     #annotations_plot = [(r*a)/a+0.1 for a,r in  zip(annotations,rr)]
