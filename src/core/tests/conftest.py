@@ -8,7 +8,6 @@ def resource_files():
     file_paths = []
 
     for root, dirs, files in os.walk(resource_dir):
-        print(root)
         for file in files:
             file_paths.append(os.path.join(root, file))
 

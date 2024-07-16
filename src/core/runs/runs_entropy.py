@@ -73,10 +73,10 @@ class RRLoader(AbstractDataLoader):
 class NoisedRRLoader(AbstractDataLoader):
     def load(self, filename, rr_col, an_col):
         data = np.loadtxt(filename, skiprows=1, delimiter="\t")
-        rr = data[:, 1]
+        rr = data[:, rr_col]
         noise = np.random.normal(0, 0.001, len(rr))
         noised_rr = rr + noise
-        annotations = data[:, 2]
+        annotations = data[:, an_col]
         return noised_rr, annotations
 
 
@@ -85,6 +85,14 @@ class RRLoaderNoAnnotations(AbstractDataLoader):
         rr = np.loadtxt(filename, skiprows=1, delimiter="\t")
         return rr
 
+
+class RRLoaderShuffled(AbstractDataLoader):
+    def load(self, filename, rr_col, an_col):
+        data = np.loadtxt(filename, skiprows=1, delimiter="\t")
+        np.random.shuffle(data)
+        rr = data[:, rr_col]
+        annotations = data[:, an_col]
+        return rr, annotations
 
 class Runs:
     def __init__(self, signal: Signal):
@@ -99,6 +107,8 @@ class Runs:
         self.HNO = self.asymmetrical_entropy(self.counters_cache["=="])
 
     def split_signal_into_segments(self):
+        #if self.signal.annotations is None:
+        #    return np.array([self.signal.rr])
         bad_indices = np.where(self.signal.annotations != 0.0)[0]
 
         start = 1
@@ -218,7 +228,7 @@ class Runs:
 
 
 if __name__ == "__main__":
-    rr, annotations = RRLoader().load("F:\phd\monotonic_runs\src\core\\tests\\resources\\rr\\1.txt",0,1)
+    rr, annotations = RRLoader().load(u"src/core/tests/resources/rr/1.txt",0,1)
     #noised_rr, noised_annotations = NoisedRRLoader().load("0001.rea")
 
     #annotations =  np.zeros(len(rr))
@@ -240,14 +250,3 @@ if __name__ == "__main__":
     print("HDR: ",runs.HDR)
     print("HAR: :",runs.HAR)
     print("HNR: ",runs.HNO)
-    #print(runs.bidirectional_count())
-    #plt.plot(rr)
-    #annotations_plot = [(r*a)/a+0.1 for a,r in  zip(annotations,rr)]
-    #plt.scatter(list(range(len(annotations))),annotations_plot)
-    #plt.show()
-    #print(runs.signal.rr)
-    #print(noised_runs.signal.rr)
-    #for i in range(len(runs.signal.rr)):
-    #    print(runs.signal.rr[i],noised_runs.signal.rr[i],runs.signal.rr[i] - noised_runs.signal.rr[i])
-#21	14	5	1	1
-#22	17	4	1	1	0	0	1

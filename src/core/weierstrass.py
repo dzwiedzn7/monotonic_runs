@@ -47,7 +47,7 @@ def asymmetric_weierstrass_sawtooth( a, b, n):
     Returns:
     array-like, function values
     """
-    x = np.linspace(-2, 2, 1000)
+    x = np.linspace(-2, 2, n) + np.random.normal(0, 0.1, n)
     x = np.asarray(x)
     return sum(a ** n * sawtooth(b ** n * np.pi * x) for n in range(50))
 
@@ -95,6 +95,15 @@ if __name__ == '__main__':
 
     x = np.linspace(-2, 2, 1000)
     aw_jp = asymmetric_weierstrass_jp(x,a,b,n_terms)
+
+    from src.core.runs.runs_entropy import Signal, Runs
+
+    signal = Signal(chi_square, np.zeros_like(chi_square))
+    runs = Runs(signal)
+    dec_entropy = runs.HDR
+    acc_entropy = runs.HAR
+    neutral_entropy = runs.HNO
+    print(dec_entropy,acc_entropy,neutral_entropy)
 
     plt.figure(figsize=(12, 6))
     plt.plot(ar, label='Generated AR(1) Series')
