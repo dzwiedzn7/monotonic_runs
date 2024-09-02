@@ -51,30 +51,32 @@ def asymmetric_weierstrass_sawtooth( a, b, n):
     x = np.asarray(x)
     return sum(a ** n * sawtooth(b ** n * np.pi * x) for n in range(50))
 
+def weierstrass(l, D):
+    print(l)
+    x = np.concatenate((-np.arange(-l, 0) / l, np.arange(0, l + 1) / l)).astype(np.float64)
+    w = np.zeros_like(x, dtype=np.float64)
+    for i in range(101):
+        part1 = 2 ** (-i * (2 - D))
+        part2 = np.cos(2 ** i * np.pi * x)
+        w += part1 * part2
+    return w
 
-def asymmetric_weierstrass_jp(x, a, b, n_terms):
-    """
-    Generate a signal using the Weierstrass function.
 
-    Parameters:
-    x (np.ndarray): Input array of x values.
-    a (float): Parameter a, where 0 < a < 1.
-    b (int): Parameter b, a positive odd integer.
-    n_terms (int): Number of terms in the series.
+def add_asym_noise(RR, sd1, sd2):
+    differences = np.diff(RR)
+    RR_noise = []
+    for idx in range(len(RR) - 1):
+        if differences[idx] > 0:
+            RR_noise.append(RR[idx + 1] + np.random.normal(0, sd1))
+        elif differences[idx] < 0:
+            RR_noise.append(RR[idx + 1] + np.random.normal(0, sd2))
+    return np.array(RR_noise)
 
-    Returns:
-    np.ndarray: The Weierstrass function evaluated at each x.
-    """
-    W = np.zeros_like(x)
-    threshold = -sigma*scale
-    for n in range(n_terms):
-        W += a ** n * np.cos(b ** n * np.pi * x)
-        eps = np.random.normal()
-        if eps < threshold:
-            W += np.random.normal(scale=sigma*scale)
-        else:
-            W += abs(np.random.normal(scale=sigma*scale))
-    return W
+
+def asymmetric_weierstrass_jp(length=10000, D=None, sd1=0.5, sd2=2.0):
+    if D is None:
+        D = np.random.uniform(1.2, 1.8)
+    return add_asym_noise(weierstrass(length, D), sd1, sd2)
 
 def generate_normal_signal(mean, std_dev, num_samples):
     signal = np.random.normal(loc=mean, scale=std_dev, size=num_samples)
@@ -94,8 +96,7 @@ if __name__ == '__main__':
     aw_classic = asymmetric_weierstrass_sawtooth(a,b,n)
 
     x = np.linspace(-2, 2, 1000)
-    aw_jp = asymmetric_weierstrass_jp(x,a,b,n_terms)
-
+    aw_jp = asymmetric_weierstrass_jp(length=500)
     from src.core.runs.runs_entropy import Signal, Runs
 
     signal = Signal(chi_square, np.zeros_like(chi_square))
